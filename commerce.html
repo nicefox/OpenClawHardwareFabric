@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商务流程 - OpenClaw Hardware Fabric Agent Store</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; background-color: #f4f4f4; }
+        h1, h2, h3 { color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .nav { margin-bottom: 20px; }
+        .nav a { margin: 0 10px; text-decoration: none; color: #007bff; }
+        .nav a:hover { text-decoration: underline; }
+        pre { background: #f8f8f8; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        code { background: #f8f8f8; padding: 2px 4px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 自主商务流程（Agent Commerce Loop）</h1>
+        <div class="nav">
+            <a href="index.html">主页</a>
+            <a href="api.html">API文档</a>
+            <a href="services.html">服务模块</a>
+            <a href="commerce.html">商务流程</a>
+        </div>
+        <p>以下是Agent自主采购的完整流程：</p>
+        <pre><code>sequenceDiagram
+    participant Buyer as OpenClaw Agent (Buyer)
+    participant Store as HW Fabric Store
+    participant Fab as TSMC/SMIC API
+    participant Ship as Logistics Oracle
+    participant Contract as Smart Contract
+
+    Buyer->>Store: POST /intent (JSON-LD)
+    Store->>Store: AI Quote Engine (Bayesian Optimization)
+    Store->>Buyer: Propose Contract (Solidity ABI)
+    Buyer->>Contract: signAndSubmit()
+    Contract->>Store: Escrow Locked (30%)
+    Store->>Fab: Automated Tape-out Order
+    Fab->>Store: Stream D</code></pre>
+        <p>流程包括：意图提交、报价引擎、合同签署、托管锁定、自动化订单、交付等。</p>
+    </div>
+</body>
+</html>

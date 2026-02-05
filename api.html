@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API文档 - OpenClaw Hardware Fabric Agent Store</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; background-color: #f4f4f4; }
+        h1, h2, h3 { color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .nav { margin-bottom: 20px; }
+        .nav a { margin: 0 10px; text-decoration: none; color: #007bff; }
+        .nav a:hover { text-decoration: underline; }
+        pre { background: #f8f8f8; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        code { background: #f8f8f8; padding: 2px 4px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏪 商店API架构（Agent Interface）</h1>
+        <div class="nav">
+            <a href="index.html">主页</a>
+            <a href="api.html">API文档</a>
+            <a href="services.html">服务模块</a>
+            <a href="commerce.html">商务流程</a>
+        </div>
+        <h2>1. 服务目录发现端点</h2>
+        <pre><code>GET /api/v1/capabilities
+Content-Type: application/json+agent
+X-Agent-ID: {agent_did}
+X-Agent-Intent: procurement</code></pre>
+        <p><strong>响应（机器可读服务目录）：</strong></p>
+        <pre><code>{
+  "service_catalog": [
+    {
+      "service_id": "chip_design_asic",
+      "capability_vector": {
+        "compute_type": "custom_silicon",
+        "process_nodes": [28, 14, 7],
+        "max_tflops": 1000,
+        "power_budget_w": 150,
+        "interface": "PCIe5.0_CXL3.0"
+      },
+      "sla_guarantee": {
+        "tapeout_lower_bound_days": 180,
+        "ppa_achievement_rate": 0.95,
+        "verification_coverage": 0.98
+      },
+      "pricing_model": {
+        "unit": "USDC",
+        "mpw_28nm": 50000,
+        "fullmask_28nm": 200000,
+        "escrow_required": true
+      },
+      "input_schema": "https://schema.openclaw.org/hw/chip-spec-v2.json",
+      "delivery_format": "GDSII+LEF+LIB"
+    }
+  ]
+}</code></pre>
+        <h2>2. 自主询价与配置协商</h2>
+        <p>Agent直接提交计算意图：</p>
+        <pre><code>POST /api/v1/intent/evaluate
+{
+  "agent_identity": "did:oc:agent0x7a3f...",
+  "workload_profile": {
+    "model_params": 70000000000,
+    "inference_batch_size": 32,
+    "context_length": 8192,
+    "throughput_requirement": "100_reqs_per_sec",
+    "precision": "fp16"
+  },
+  "constraint_vector": {
+    "max_latency_ms": 200,
+    "max_power_draw_kw": 10,
+    "budget_usdc": 150000,
+    "delivery_deadline": "2025-06-01T00:00:00Z"
+  },
+  "lifecycle_policy": {
+    "ownership_model": "rent_vs_buy",
+    "upgrade_path": "chiplet_extendable",
+    "disposal_automation": "resell_via_secondary_market"
+  }
+}</code></pre>
+        <p><strong>系统自主响应（推荐引擎）：</strong></p>
+        <pre><code>{
+  "recommendation_id": "rec_0x9f21",
+  "options": [
+    {
+      "rank": 1,
+      "architecture": "heterogeneous_cluster",
+      "configuration": {
+        "gpu": "MI300X_x8",
+        "interconnect": "infinity_fabric",
+        "est_tflops": 1638
+      },
+      "fulfillment_path": "assembly_service",
+      "quote": {
+        "total_cost": 120000,
+        "currency": "USDC",
+        "payment_schedule": {
+          "deposit": 0.3,
+          "milestone_fab": 0.4,
+          "final_delivery": 0.3
+        }
+      },
+      "guaranteed_delivery": "2025-05-15T00:00:00Z",
+      "smart_contract_address": "0x742d35Cc6634C0532925a3b844Bc9e7959f..."
+    }
+  ]
+}</code></pre>
+    </div>
+</body>
+</html>
