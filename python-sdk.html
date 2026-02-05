@@ -1,0 +1,234 @@
+<h1 id="python-sdk-参考">Python SDK 参考</h1>
+<p><code>openclaw</code> Python 包的完整 API 参考。</p>
+<h2 id="核心类">核心类</h2>
+<h3 id="agenthardwareclient"><code>AgentHardwareClient</code></h3>
+<p>代理硬件操作的主要入口点。</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AgentHardwareClient(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a> identity_path: <span class="bu">str</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a> network: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;testnet&quot;</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a> tee_enclave: Optional[<span class="bu">str</span>] <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a> config: Optional[Dict] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p>参数：</p>
+<table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 23%" />
+<col style="width: 30%" />
+<col style="width: 23%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>名称</th>
+<th>类型</th>
+<th>默认值</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>identity_path</td>
+<td>str</td>
+<td>必需</td>
+<td>代理 DID JSON 文件路径</td>
+</tr>
+<tr class="even">
+<td>network</td>
+<td>str</td>
+<td>“testnet”</td>
+<td>网络: “local”, “testnet”, “mainnet”</td>
+</tr>
+<tr class="odd">
+<td>tee_enclave</td>
+<td>Optional[str]</td>
+<td>None</td>
+<td>TEE 类型: “sgx”, “trustzone”, “nitro”</td>
+</tr>
+<tr class="even">
+<td>config</td>
+<td>Optional[Dict]</td>
+<td>None</td>
+<td>高级配置选项</td>
+</tr>
+</tbody>
+</table>
+<p>示例：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>client <span class="op">=</span> AgentHardwareClient(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a> identity_path<span class="op">=</span><span class="st">&quot;agent.json&quot;</span>,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a> network<span class="op">=</span><span class="st">&quot;testnet&quot;</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a> tee_enclave<span class="op">=</span><span class="st">&quot;sgx&quot;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="方法">方法</h3>
+<h4 id="analyze_bottlenecks">analyze_bottlenecks</h4>
+<p>分析当前硬件性能并决定是否需要演化。</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> analyze_bottlenecks(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a> current_metrics: Dict[<span class="bu">str</span>, <span class="bu">float</span>],</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a> target_capabilities: List[<span class="bu">str</span>],</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a> lookahead_days: <span class="bu">int</span> <span class="op">=</span> <span class="dv">30</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> CapabilityGap</span></code></pre></div>
+<p>参数：</p>
+<ul>
+<li><strong>current_metrics</strong>: 性能测量
+<ul>
+<li><code>throughput</code>: 每秒 token 数或推理数</li>
+<li><code>latency_ms</code>: P99 延迟（毫秒）</li>
+<li><code>power_consumption</code>: 消耗瓦特数</li>
+<li><code>cost_per_hour</code>: 运营成本</li>
+</ul></li>
+<li><strong>target_capabilities</strong>: 所需功能列表
+<ul>
+<li>选项: “edge_inference”, “real_time_video”, “distributed_training”
+等</li>
+</ul></li>
+<li><strong>lookahead_days</strong>: 需求预测的时间范围</li>
+</ul>
+<p>返回： <code>CapabilityGap</code> 对象包含：</p>
+<ul>
+<li><code>compute_bottleneck</code>: 识别的瓶颈类型</li>
+<li><code>urgency_score</code>: 0.0-1.0
+的浮点数（演化触发阈值：0.7）</li>
+<li><code>knowledge_deficit</code>: 未覆盖功能的熵度量</li>
+<li><code>economic_pressure</code>: 成本效率比</li>
+</ul>
+<p>示例：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>gap <span class="op">=</span> <span class="cf">await</span> client.analyze_bottlenecks(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a> current_metrics<span class="op">=</span>{<span class="st">&quot;throughput&quot;</span>: <span class="dv">20</span>, <span class="st">&quot;latency_ms&quot;</span>: <span class="dv">200</span>},</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a> target_capabilities<span class="op">=</span>[<span class="st">&quot;real_time_generation&quot;</span>]</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> gap.urgency_score <span class="op">&gt;</span> <span class="fl">0.7</span>:</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot;建议演化: </span><span class="sc">{</span>gap<span class="sc">.</span>compute_bottleneck<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<h4 id="submit_evolution_intent">submit_evolution_intent</h4>
+<p>向 Fabric 提交硬件演化请求。</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> submit_evolution_intent(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a> gap: CapabilityGap,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a> target_stage: EvolutionStage <span class="op">=</span> EvolutionStage.ARCHITECTURE,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a> budget_constraints: Optional[BudgetConstraints] <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a> diversity_required: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> EvolutionJob</span></code></pre></div>
+<p>抛出： - <code>ValueError</code>: 如果 urgency_score &lt; 0.7</p>
+<p>返回： 用于跟踪硬件演化进度的 <code>EvolutionJob</code>。</p>
+<h4 id="stream_milestones">stream_milestones</h4>
+<p>用于实时进度更新的异步生成器。</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> stream_milestones() <span class="op">-&gt;</span> AsyncIterator[Dict[<span class="bu">str</span>, Any]]</span></code></pre></div>
+<p>产生带有以下键的字典：</p>
+<ul>
+<li><code>stage</code>: 设计阶段（例如 “rtl_generation”, “placement”,
+“signoff”）</li>
+<li><code>completion</code>: 完成百分比 (0-100)</li>
+<li><code>timestamp</code>: Unix 时间戳</li>
+<li><code>artifacts</code>: 生成文件的 IPFS CID（如果有）</li>
+</ul>
+<p>示例：</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">for</span> milestone <span class="kw">in</span> job.stream_milestones():</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>milestone[<span class="st">&#39;stage&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>milestone[<span class="st">&#39;completion&#39;</span>]<span class="sc">}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a> <span class="cf">if</span> milestone[<span class="st">&#39;stage&#39;</span>] <span class="op">==</span> <span class="st">&#39;rtl_generation&#39;</span>:</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot;RTL available at: </span><span class="sc">{</span>milestone[<span class="st">&#39;artifacts&#39;</span>][<span class="st">&#39;verilog&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<h3 id="siliconcompiler">SiliconCompiler</h3>
+<p>AI 原生芯片设计接口。</p>
+<h4 id="compile">compile</h4>
+<p>从规格生成硬件。</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">compile</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a> spec: HardwareSpec,</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a> optimization_target: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;balanced&quot;</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a> constraint_set: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;default&quot;</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a> enable_ai_exploration: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> CompilationJob</span></code></pre></div>
+<p>优化目标：</p>
+<ul>
+<li>“performance”: 最大化 TFLOPS</li>
+<li>“energy_efficiency”: 最大化 TFLOPS/Watt</li>
+<li>“area”: 最小化芯片面积</li>
+<li>“balanced”: 帕累托最优权衡</li>
+</ul>
+<h2 id="数据类">数据类</h2>
+<h3 id="hardwarespec">HardwareSpec</h3>
+<p>硬件规格容器。</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> HardwareSpec:</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a> process_node: <span class="bu">str</span> <span class="co"># &quot;28nm&quot;, &quot;14nm&quot;, &quot;7nm&quot;, &quot;5nm&quot;</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a> target_tflops: <span class="bu">float</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a> power_budget_w: <span class="bu">int</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a> area_budget_mm2: <span class="bu">float</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a> form_factor: <span class="bu">str</span> <span class="co"># &quot;m.2_2280&quot;, &quot;pcie_full&quot;, &quot;soc&quot;</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a> memory_architecture: <span class="bu">str</span> <span class="co"># &quot;standard&quot;, &quot;cim_sram&quot;, &quot;cim_reram&quot;</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a> isa: <span class="bu">str</span> <span class="co"># &quot;riscv_custom&quot;, &quot;arm&quot;, &quot;x86&quot;</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a> backward_compatible: <span class="bu">bool</span> <span class="co"># 必须运行父代软件</span></span></code></pre></div>
+<h3 id="cimconfig">CIMConfig</h3>
+<p>存算一体 (Compute-in-Memory) 特定配置。</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CIMConfig:</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a> array_rows: <span class="bu">int</span> <span class="op">=</span> <span class="dv">512</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a> array_cols: <span class="bu">int</span> <span class="op">=</span> <span class="dv">512</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a> bitcell_type: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;sram_6t&quot;</span> <span class="co"># 或 &quot;reram&quot;, &quot;pcm&quot;</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a> adc_resolution: <span class="bu">int</span> <span class="op">=</span> <span class="dv">8</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a> digital_accumulation: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a> sparse_access_optimization: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a> near_memory_compute: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span></code></pre></div>
+<h2 id="异常">异常</h2>
+<h3 id="evolutionsafetyerror">EvolutionSafetyError</h3>
+<p>当提议的演化违反安全约束时引发。</p>
+<p>属性：</p>
+<ul>
+<li><code>violation_type</code>: “constitution_lock”,
+“diversity_requirement” 等</li>
+<li><code>details</code>: 人类可读的解释</li>
+<li><code>suggested_alternative</code>: 安全的替代规格</li>
+</ul>
+<h3 id="fabricationerror">FabricationError</h3>
+<p>制造阶段失败。</p>
+<p>属性：</p>
+<ul>
+<li><code>stage</code>: 哪个阶段失败了 (“mask_making”,
+“wafer_processing” 等)</li>
+<li><code>recoverable</code>: 是否可以重试</li>
+<li><code>insurance_payout</code>: 自动补偿金额（如果适用）</li>
+</ul>
+<h2 id="类型提示">类型提示</h2>
+<p>IDE 支持的完整类型定义：</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> TypedDict, Literal</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Metrics(TypedDict):</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a> throughput: <span class="bu">float</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a> latency_ms: <span class="bu">float</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a> power_consumption: <span class="bu">float</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a> cost_per_hour: <span class="bu">float</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>ProcessNode <span class="op">=</span> Literal[<span class="st">&quot;28nm&quot;</span>, <span class="st">&quot;14nm&quot;</span>, <span class="st">&quot;7nm&quot;</span>, <span class="st">&quot;5nm&quot;</span>, <span class="st">&quot;3nm&quot;</span>]</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>FormFactor <span class="op">=</span> Literal[<span class="st">&quot;m.2_2230&quot;</span>, <span class="st">&quot;m.2_2280&quot;</span>, <span class="st">&quot;m.2_22110&quot;</span>, <span class="st">&quot;pcie_half&quot;</span>, <span class="st">&quot;pcie_full&quot;</span>, <span class="st">&quot;soc&quot;</span>]</span></code></pre></div>
+<h2 id="常量">常量</h2>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openclaw <span class="im">import</span> constants</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>constants.MINIMUM_EVOLUTION_BUDGET_USD <span class="co"># 10000</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>constants.MAXIMUM_EVOLUTION_STAGES <span class="co"># 5</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>constants.DEFAULT_VERIFICATION_TIMEOUT <span class="co"># 7200 seconds</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>constants.CONSTITUTION_ROM_ADDRESSES <span class="co"># [0x0000, 0x0001, 0x0002]</span></span></code></pre></div>
+<h2 id="异步模式">异步模式</h2>
+<p>所有网络绑定方法都是异步的。使用 <code>asyncio</code> 或
+<code>trio</code>:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> asyncio</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openclaw <span class="im">import</span> AgentHardwareClient</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> main():</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a> client <span class="op">=</span> AgentHardwareClient(<span class="st">&quot;agent.json&quot;</span>)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a> <span class="co"># ... 异步操作</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 推荐: 使用 asyncio.run()</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>asyncio.run(main())</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 对于 Jupyter 笔记本:</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="co"># await main()</span></span></code></pre></div>

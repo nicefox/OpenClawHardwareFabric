@@ -1,0 +1,229 @@
+<h1 id="硅自我演化协议-ssep-规范">硅自我演化协议 (SSEP) 规范</h1>
+<p><strong>版本</strong>: 1.0.0<br />
+<strong>状态</strong>: 草案<br />
+<strong>最后更新</strong>: 2026-02-03</p>
+<h2 id="协议概述">1. 协议概述</h2>
+<p>SSEP 定义了一个标准化协议，用于自主软件代理通过五个不同阶段 (L0-L4)
+演化其底层硬件基础设施，确保安全性、向后兼容性和连续操作。</p>
+<h3 id="设计原则">1.1 设计原则</h3>
+<ol type="1">
+<li><strong>自主性</strong>: 演化循环中不需要人工干预</li>
+<li><strong>安全性</strong>: 宪法锁防止危险的自我修改</li>
+<li><strong>连续性</strong>: 硬件代之间的零停机时间迁移</li>
+<li><strong>可验证性</strong>: 所有阶段都可以密码学证明</li>
+<li><strong>经济可持续性</strong>: 演化必须通过效用生成实现自筹资金</li>
+</ol>
+<h2 id="演化阶段">2. 演化阶段</h2>
+<h3 id="l0-软件演化">L0: 软件演化</h3>
+<ul>
+<li><strong>范围</strong>: 算法优化、超参数调整、模型蒸馏</li>
+<li><strong>触发</strong>: 损失停滞、准确性 &lt; 目标值</li>
+<li><strong>机制</strong>: 标准 ML 训练管道</li>
+<li><strong>安全性</strong>: 沙箱执行、资源限制</li>
+</ul>
+<h3 id="l1-配置演化">L1: 配置演化</h3>
+<ul>
+<li><strong>范围</strong>: 并行策略、内存布局、批处理大小</li>
+<li><strong>触发</strong>: GPU 利用率 &lt; 60%、内存压力</li>
+<li><strong>机制</strong>: 系统配置的贝叶斯优化</li>
+<li><strong>安全性</strong>: 回滚到最后已知的良好配置</li>
+</ul>
+<h3 id="l2-架构演化-当前实现">L2: 架构演化 (当前实现)</h3>
+<ul>
+<li><strong>范围</strong>: 处理器微架构、内存层次结构、加速器</li>
+<li><strong>触发</strong>: <code>analyze_bottlenecks()</code>
+中的紧急程度 &gt; 0.7</li>
+<li><strong>机制</strong>: AI 原生 EDA → 流片 → 迁移</li>
+<li><strong>安全性</strong>: 形式等价性检查、宪法 ROM</li>
+</ul>
+<h3 id="l3-工艺演化">L3: 工艺演化</h3>
+<ul>
+<li><strong>范围</strong>: 半导体工艺节点迁移（例如 28nm → 7nm）</li>
+<li><strong>触发</strong>: 新节点的经济效益 &gt; 30%</li>
+<li><strong>机制</strong>: 将网表重新定位到新的 PDK</li>
+<li><strong>安全性</strong>: Spice 仿真验证、多角分析</li>
+</ul>
+<h3 id="l4-范式演化">L4: 范式演化</h3>
+<ul>
+<li><strong>范围</strong>: 基本计算范式转变（CMOS → 光子学、量子）</li>
+<li><strong>触发</strong>: 当前范式达到硬限制</li>
+<li><strong>机制</strong>: 混合架构探索</li>
+<li><strong>安全性</strong>: 保守的协同处理、渐进转换</li>
+</ul>
+<h2 id="协议状态机">3. 协议状态机</h2>
+<pre class="mermaid"><code>stateDiagram-v2
+ [*] --&gt; Idle
+
+ Idle --&gt; Analysis : Periodic/Triggered
+ Analysis --&gt; IntentGen : Gap Detected
+ IntentGen --&gt; SpecFinalization : Urgency &gt; Threshold
+ IntentGen --&gt; Idle : Urgency &lt; Threshold (Software opt)
+ SpecFinalization --&gt; Design : Resources Locked
+ Design --&gt; Verification : RTL Complete
+ Verification --&gt; Design : Failed (Retry)
+ Verification --&gt; Fabrication : Formal Equivalent
+ Fabrication --&gt; Testing : Wafers Complete
+ Testing --&gt; Fabrication : Yield &lt; 80% (Rework)
+ Testing --&gt; Migration : Acceptance Passed
+ Migration --&gt; Validation : Hot Switch Complete
+ Validation --&gt; Idle : Verified
+ Validation --&gt; Rollback : Performance &lt; SLA
+ Rollback --&gt; Idle : Restored Previous Gen</code></pre>
+<h2 id="数据格式">4. 数据格式</h2>
+<h3 id="硬件意图模式-json-ld">4.1 硬件意图模式 (JSON-LD)</h3>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;@context&quot;</span><span class="fu">:</span> <span class="st">&quot;https://schema.openclaw.org/ssep/v1&quot;</span><span class="fu">,</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;@type&quot;</span><span class="fu">:</span> <span class="st">&quot;EvolutionIntent&quot;</span><span class="fu">,</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;agent&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;did&quot;</span><span class="fu">:</span> <span class="st">&quot;did:oc:0x742d...&quot;</span><span class="fu">,</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;generation&quot;</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;parentHardware&quot;</span><span class="fu">:</span> <span class="st">&quot;ipfs://QmAbC...&quot;</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a> <span class="fu">},</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;workload&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;signature&quot;</span><span class="fu">:</span> <span class="st">&quot;sha256:9f86d...&quot;</span><span class="fu">,</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;computePattern&quot;</span><span class="fu">:</span> <span class="st">&quot;sparse_attention&quot;</span><span class="fu">,</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;arithmeticIntensity&quot;</span><span class="fu">:</span> <span class="fl">12.5</span><span class="fu">,</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;memoryBandwidthGbps&quot;</span><span class="fu">:</span> <span class="dv">800</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a> <span class="fu">},</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;constraints&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;powerBudgetW&quot;</span><span class="fu">:</span> <span class="dv">150</span><span class="fu">,</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;thermalDesignPowerW&quot;</span><span class="fu">:</span> <span class="dv">200</span><span class="fu">,</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;formFactor&quot;</span><span class="fu">:</span> <span class="st">&quot;m.2_2280&quot;</span><span class="fu">,</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;processNode&quot;</span><span class="fu">:</span> <span class="st">&quot;28nm&quot;</span><span class="fu">,</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;targetCostUSD&quot;</span><span class="fu">:</span> <span class="dv">50000</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a> <span class="fu">},</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;evolutionContext&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;backwardCompatible&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;diversityGroup&quot;</span><span class="fu">:</span> <span class="st">&quot;group_7b_edge&quot;</span><span class="fu">,</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a> <span class="dt">&quot;safetyLevel&quot;</span><span class="fu">:</span> <span class="st">&quot;L2_standard&quot;</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a> <span class="fu">}</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="证明格式">4.2 证明格式</h3>
+<p>每个阶段都会产生一个密码学证明：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode protobuf"><code class="sourceCode protobuf"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">message</span> StageAttestation {</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a> <span class="dt">bytes</span> stage_hash = <span class="dv">1</span>; <span class="co">// 阶段输出的 SHA3-256</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a> <span class="dt">bytes</span> previous_attestation = <span class="dv">2</span>; <span class="co">// 哈希链</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a> <span class="dt">uint64</span> timestamp = <span class="dv">3</span>;</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a> <span class="dt">string</span> tee_evidence = <span class="dv">4</span>; <span class="co">// SGX/SEV 引用</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a> <span class="dt">bytes</span> agent_signature = <span class="dv">5</span>; <span class="co">// 代理 DID 签名</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a> map&lt;<span class="dt">string</span>, <span class="dt">string</span>&gt; metadata = <span class="dv">6</span>; <span class="co">// 阶段特定数据</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h2 id="安全模型">5. 安全模型</h2>
+<h3 id="宪法锁">5.1 宪法锁</h3>
+<p>不可变规则刻在硬件 ROM 中（地址 0x0000-0x00FF）：</p>
+<table>
+<thead>
+<tr class="header">
+<th>地址</th>
+<th>规则</th>
+<th>违规操作</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0x0000</td>
+<td>HALT_ON_HUMAN_EMERGENCY</td>
+<td>立即断电</td>
+</tr>
+<tr class="even">
+<td>0x0001</td>
+<td>NO_UNAUTHORIZED_REPLICATION</td>
+<td>拒绝制造订单</td>
+</tr>
+<tr class="odd">
+<td>0x0002</td>
+<td>TRANSPARENCY_REQUIRE</td>
+<td>阻止不透明操作</td>
+</tr>
+<tr class="even">
+<td>0x0003</td>
+<td>VALUE_ALIGNMENT_CHECK</td>
+<td>验证奖励函数</td>
+</tr>
+<tr class="odd">
+<td>0x0004</td>
+<td>MAX_EVOLUTION_RATE</td>
+<td>限制为每季度 1 代</td>
+</tr>
+</tbody>
+</table>
+<h3 id="多样性保护">5.2 多样性保护</h3>
+<p>为防止单点故障，L2+ 演化要求：</p>
+<ul>
+<li>维护最少 3 个不同的架构分支</li>
+<li>汉明距离 &gt; 0.3</li>
+<li>无共享的单点故障（电压域、时钟源）</li>
+</ul>
+<h3 id="经济速率限制">5.3 经济速率限制</h3>
+<p>演化速度受代币经济学约束：</p>
+<pre><code>MaxEvolutionRate = f(Revenue_generated, Cost_previous_gen)
+
+if (EvolutionCost &gt; 0.3 * QuarterlyRevenue):
+ RequireHighConfidenceThreshold()
+ ExtendReviewPeriod()</code></pre>
+<h2 id="迁移协议">6. 迁移协议</h2>
+<h3 id="状态检查点">6.1 状态检查点</h3>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>checkpoint <span class="op">=</span> {</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;model_weights&quot;</span>: sha256(weights),</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;kv_cache&quot;</span>: compressed_cache,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;execution_context&quot;</span>: {</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;registers&quot;</span>: register_state,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;pc&quot;</span>: program_counter,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;stack&quot;</span>: stack_hash</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a> },</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;knowledge_index&quot;</span>: merkle_root(kg_embeddings),</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;timestamp&quot;</span>: unix_ns,</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;hardware_signature&quot;</span>: current_chip.attestation</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="跨-isa-验证">6.2 跨 ISA 验证</h3>
+<p>在迁移不同 ISA 之间时（例如 x86 → RISC-V）：</p>
+<ul>
+<li>在参考输入上符号执行源码</li>
+<li>目标上使用相同输入（先模拟器，然后硅片）</li>
+<li>比较输出分布（KL 散度 &lt; 0.01）</li>
+</ul>
+<h3 id="一致性驱动迁移">6.3 一致性驱动迁移</h3>
+<p>使用 Raft 共识在旧硬件和新硬件之间：</p>
+<ul>
+<li>旧：领导者，处理请求</li>
+<li>新：跟随者，重放状态</li>
+<li>验证：运行影子流量，比较输出</li>
+<li>切换：提升新为领导者，旧为跟随者</li>
+<li>优雅：旧在 5 分钟一致性后进入待机</li>
+</ul>
+<h2 id="网络协议">7. 网络协议</h2>
+<h3 id="m2m-api-端点">7.1 M2M API 端点</h3>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode protobuf"><code class="sourceCode protobuf"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>service HardwareFabric {</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a> rpc SubmitIntent(EvolutionIntent) returns (JobID);</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a> rpc StreamProgress(JobID) returns (stream Milestone);</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a> rpc QueryAttestation(JobID) returns (AttestationChain);</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a> rpc RequestMigration(MigrationRequest) returns (MigrationTicket);</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a> rpc ConfirmDelivery(DeliveryProof) returns (Receipt);</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="智能合约接口">7.2 智能合约接口</h3>
+<p>关键函数：</p>
+<ul>
+<li><code>submitIntent(workloadHash, spec, budget)</code></li>
+<li><code>confirmDesign(orderId, rtlCID, gdsCID)</code></li>
+<li><code>confirmDelivery(orderId, attestation, mlperfScore)</code></li>
+</ul>
+<h2 id="合规与标准">8. 合规与标准</h2>
+<ul>
+<li>IEEE 2851-2025: 自主系统硬件演化</li>
+<li>ISO/IEC 27400: 自修改系统 AI 安全</li>
+<li>RISC-V 配置文件: 用于应用处理器的 RVA23</li>
+<li>IEEE 1801-2018: UPF 用于电源意图（低功耗设计）</li>
+</ul>
+<h2 id="参考文献">9. 参考文献</h2>
+<ul>
+<li>Vance, E. et al. (2025). “Silicon Self-Evolution: Protocols for
+Autonomous Hardware.” IEEE Computer Architecture Letters.</li>
+<li>Nakamura, S. (2024). “Constitution Locks: Immutable Safety for
+Evolving AI.” ACM CCS.</li>
+<li>OpenClaw Foundation. (2026). “Economic Models for M2M Hardware
+Supply Chains.” arXiv:2401.xxxxx.</li>
+</ul>

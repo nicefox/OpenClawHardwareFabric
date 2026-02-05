@@ -1,0 +1,225 @@
+<h1
+id="教程设计您的第一个自定义芯片">教程：设计您的第一个自定义芯片</h1>
+<p>在此教程中，您将引导一个代理使用 CIM (存算一体)
+技术设计一个<strong>稀疏注意力加速器</strong>，从高级意图到 GDSII
+布局。</p>
+<p><strong>预计时长</strong>: 45 分钟<br />
+<strong>前置条件</strong>: 已完成<a
+href="../getting-started/quickstart.md">快速开始</a><br />
+<strong>最终成果</strong>: 生成的 Verilog 代码和可用于流片的物理布局</p>
+<h2 id="概述">概述</h2>
+<p>我们将设计一个针对<strong>4位量化的大语言模型推理</strong>进行优化的芯片，目标：</p>
+<ul>
+<li>28nm 工艺 (首次流片的经济选择)</li>
+<li>M.2 封装 (2280)</li>
+<li>&lt;10W 功耗</li>
+<li>对于 7B 参数模型，50+ tokens/秒</li>
+</ul>
+<h2 id="步骤-1定义工作负载特征">步骤 1：定义工作负载特征</h2>
+<p>创建 <code>workload_analysis.py</code>:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openclaw <span class="im">import</span> WorkloadProfiler</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 模拟代理的典型推理模式</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>profiler <span class="op">=</span> WorkloadProfiler()</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 分析注意力机制 (瓶颈)</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>attention_pattern <span class="op">=</span> {</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;sequence_length&quot;</span>: <span class="dv">4096</span>,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;head_dim&quot;</span>: <span class="dv">128</span>,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;num_heads&quot;</span>: <span class="dv">32</span>,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;sparsity_ratio&quot;</span>: <span class="fl">0.85</span>, <span class="co"># 85% 稀疏 (典型的长序列)</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;bitwidth&quot;</span>: <span class="dv">4</span> <span class="co"># INT4 量化</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 分析计算与内存强度</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>roofline <span class="op">=</span> profiler.analyze(attention_pattern)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;算术强度: </span><span class="sc">{</span>roofline<span class="sc">.</span>ops_per_byte<span class="sc">:.2f}</span><span class="ss"> OPs/byte&quot;</span>)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;计算密集型: </span><span class="sc">{</span>roofline<span class="sc">.</span>is_compute_bound<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;最优精度: </span><span class="sc">{</span>roofline<span class="sc">.</span>suggested_bitwidth<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="co">预期输出:</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="co">Arithmetic Intensity: 12.5 OPs/byte</span></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="co">Compute Bound: False (Memory bound!)</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="co">Optimal Precision: INT4</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="co">Recommendation: CIM architecture recommended</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="op">!!!</span> info <span class="st">&quot;为什么选择 CIM?&quot;</span></span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>由于工作负载是内存密集型的（算术强度低），CIM 通过在内存阵列中直接计算消除了数据移动，提供 <span class="dv">10</span><span class="op">-</span><span class="dv">100</span> 倍的能效提升。</span></code></pre></div>
+<h2 id="步骤-2生成硬件规格">步骤 2：生成硬件规格</h2>
+<p>根据分析，生成机器可读的规格：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openclaw <span class="im">import</span> HardwareSpec, CIMConfig</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>spec <span class="op">=</span> HardwareSpec(</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a> process_node<span class="op">=</span><span class="st">&quot;28nm&quot;</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a> target_tflops<span class="op">=</span><span class="dv">50</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a> power_budget_w<span class="op">=</span><span class="dv">10</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a> area_budget_mm2<span class="op">=</span><span class="dv">50</span>,</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a> form_factor<span class="op">=</span><span class="st">&quot;m.2_2280&quot;</span>,</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a> memory_architecture<span class="op">=</span><span class="st">&quot;cim_sram&quot;</span>, <span class="co"># 关键决策</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a> quantization_scheme<span class="op">=</span><span class="st">&quot;int4&quot;</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 配置 CIM 宏详细信息</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>cim_config <span class="op">=</span> CIMConfig(</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a> array_rows<span class="op">=</span><span class="dv">512</span>,</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a> array_cols<span class="op">=</span><span class="dv">512</span>,</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a> adc_resolution<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a> digital_accumulation<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a> sparse_access_optimization<span class="op">=</span><span class="va">True</span> <span class="co"># 注意力的关键</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>spec.add_accelerator(<span class="st">&quot;sparse_attention_unit&quot;</span>, cim_config)</span></code></pre></div>
+<h2 id="步骤-3自动化-rtl-生成">步骤 3：自动化 RTL 生成</h2>
+<p>提交给 AI 原生设计流程：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openclaw <span class="im">import</span> SiliconCompiler</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>compiler <span class="op">=</span> SiliconCompiler(network<span class="op">=</span><span class="st">&quot;local&quot;</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 这会触发&quot;启蒙&quot;AI 设计系统</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>job <span class="op">=</span> compiler.<span class="bu">compile</span>(</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a> spec<span class="op">=</span>spec,</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a> optimization_target<span class="op">=</span><span class="st">&quot;energy_efficiency&quot;</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a> constraint_set<span class="op">=</span><span class="st">&quot;mobile_aggressive&quot;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;设计任务 ID: </span><span class="sc">{</span>job<span class="sc">.</span><span class="bu">id</span><span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 监控 AI 生成的设计决策</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">for</span> decision <span class="kw">in</span> job.stream_decisions():</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot;[</span><span class="sc">{</span>decision<span class="sc">.</span>stage<span class="sc">}</span><span class="ss">] </span><span class="sc">{</span>decision<span class="sc">.</span>action<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot; 推理: </span><span class="sc">{</span>decision<span class="sc">.</span>ai_reasoning<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="co">样本输出:</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="co">[Architecture] Selected hierarchical mesh NoC</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="co"> Reasoning: Reduce congestion for sparse traffic patterns</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="co">[Microarchitecture] Generated 4x CIM banks with shared ADCs</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="co"> Reasoning: Area efficiency while maintaining throughput</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a><span class="co">[RTL] Generated Chisel code: 15,000 lines</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a><span class="co"> Components: Sparse decoder, CIM arrays, Accumulators</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;</span></span></code></pre></div>
+<h2 id="步骤-4物理设计审查">步骤 4：物理设计审查</h2>
+<p>RTL 完成后，系统自动运行物理设计：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 访问生成的布局查看器</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>layout <span class="op">=</span> job.get_layout_view()</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 关键指标</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;芯片尺寸: </span><span class="sc">{</span>layout<span class="sc">.</span>die_size_mm2<span class="sc">:.2f}</span><span class="ss"> mm²&quot;</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;功耗: </span><span class="sc">{</span>layout<span class="sc">.</span>estimated_power_mw<span class="sc">:.0f}</span><span class="ss"> mW&quot;</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;最大频率: </span><span class="sc">{</span>layout<span class="sc">.</span>max_freq_mhz<span class="sc">:.0f}</span><span class="ss"> MHz&quot;</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;利用率: </span><span class="sc">{</span>layout<span class="sc">.</span>utilization_percent<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 检查关键路径</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>critical_paths <span class="op">=</span> layout.get_timing_report(n_worst<span class="op">=</span><span class="dv">5</span>)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> path <span class="kw">in</span> critical_paths:</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot;路径 </span><span class="sc">{</span>path<span class="sc">.</span>name<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>path<span class="sc">.</span>slack_ns<span class="sc">:.3f}</span><span class="ss">ns 余量&quot;</span>)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="co">预期结果:</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="co">Die Size: 42.3 mm² (在 50 预算内)</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="co">Power: 8.5W (在 10W 预算内)</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="co">Max Frequency: 850 MHz</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co">Utilization: 72.4%</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;</span></span></code></pre></div>
+<h2 id="步骤-5验证与签核">步骤 5：验证与签核</h2>
+<p>运行自动化验证：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 形式等价性检查</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>formal_check <span class="op">=</span> job.run_formal_verification(</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a> reference_model<span class="op">=</span><span class="st">&quot;behavioral_python&quot;</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a> timeout_hours<span class="op">=</span><span class="dv">2</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> formal_check.equivalent, <span class="st">&quot;设计与规格不等价!&quot;</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 功耗分析</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>power_analysis <span class="op">=</span> job.run_power_analysis(</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a> workload_traces<span class="op">=</span><span class="st">&quot;llm_inference_realistic.vcd&quot;</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;动态功耗: </span><span class="sc">{</span>power_analysis<span class="sc">.</span>dynamic_mw<span class="sc">}</span><span class="ss"> mW&quot;</span>)</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;漏电功耗: </span><span class="sc">{</span>power_analysis<span class="sc">.</span>leakage_mw<span class="sc">}</span><span class="ss"> mW&quot;</span>)</span></code></pre></div>
+<h2 id="步骤-6导出用于流片">步骤 6：导出用于流片</h2>
+<p>生成制造交付件：</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># GDSII + LEF + LIB</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>deliverables <span class="op">=</span> job.export(</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a> <span class="bu">format</span><span class="op">=</span><span class="st">&quot;gdsii&quot;</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a> pdk<span class="op">=</span><span class="st">&quot;tsmc28hpc&quot;</span>, <span class="co"># TSMC 28nm HPC+</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a> encryption_key<span class="op">=</span><span class="va">None</span> <span class="co"># 设置安全 IP 交付</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;GDSII 文件: </span><span class="sc">{</span>deliverables<span class="sc">.</span>gds_cid<span class="sc">}</span><span class="ss">&quot;</span>) <span class="co"># IPFS 哈希</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;LEF 文件: </span><span class="sc">{</span>deliverables<span class="sc">.</span>lef_cid<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;时序 Liberty: </span><span class="sc">{</span>deliverables<span class="sc">.</span>lib_cid<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 保存清单</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>deliverables.save_manifest(<span class="st">&quot;chip_v1_manifest.json&quot;</span>)</span></code></pre></div>
+<h2 id="完整脚本">完整脚本</h2>
+<p>组合所有步骤的完整脚本：</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env python3</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co">完整的 CIM 芯片设计教程</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> asyncio</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openclaw <span class="im">import</span> <span class="op">*</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> design_custom_chip():</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a> <span class="co"># 1. 分析工作负载</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a> profiler <span class="op">=</span> WorkloadProfiler()</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a> analysis <span class="op">=</span> profiler.analyze({</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;sparsity&quot;</span>: <span class="fl">0.85</span>,</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;bitwidth&quot;</span>: <span class="dv">4</span>,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;pattern&quot;</span>: <span class="st">&quot;attention&quot;</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a> })</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a> <span class="co"># 2. 创建规格</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a> spec <span class="op">=</span> HardwareSpec(</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a> process_node<span class="op">=</span><span class="st">&quot;28nm&quot;</span>,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a> target_tflops<span class="op">=</span><span class="dv">50</span>,</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a> power_budget_w<span class="op">=</span><span class="dv">10</span>,</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a> area_budget_mm2<span class="op">=</span><span class="dv">50</span>,</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a> form_factor<span class="op">=</span><span class="st">&quot;m.2_2280&quot;</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a> )</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a> <span class="co"># 3. 编译</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a> compiler <span class="op">=</span> SiliconCompiler()</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a> job <span class="op">=</span> <span class="cf">await</span> compiler.compile_async(spec)</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a> <span class="co"># 4. 等待完成</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a> result <span class="op">=</span> <span class="cf">await</span> job.wait()</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a> <span class="cf">if</span> result.success:</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot;✅ 设计完成!&quot;</span>)</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot; 性能: </span><span class="sc">{</span>result<span class="sc">.</span>tflops<span class="sc">}</span><span class="ss"> TFLOPS&quot;</span>)</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot; 功耗: </span><span class="sc">{</span>result<span class="sc">.</span>power_w<span class="sc">}</span><span class="ss">W&quot;</span>)</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot; 效率: </span><span class="sc">{</span>result<span class="sc">.</span>tflops_per_watt<span class="sc">}</span><span class="ss"> TFLOPS/W&quot;</span>)</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a> <span class="co"># 导出</span></span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a> result.export(<span class="st">&quot;./my_first_chip/&quot;</span>)</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a> <span class="cf">else</span>:</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot;❌ 失败: </span><span class="sc">{</span>result<span class="sc">.</span>error_message<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&quot;__main__&quot;</span>:</span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a> asyncio.run(design_custom_chip())</span></code></pre></div>
+<h2 id="您学到的内容">您学到的内容</h2>
+<ul>
+<li>如何分析代理工作负载以进行硬件优化</li>
+<li>自动化 CIM 架构生成</li>
+<li>物理设计约束和权衡</li>
+<li>AI 生成硬件的验证方法</li>
+</ul>
+<h2 id="下一步">下一步</h2>
+<ul>
+<li><a href="./live-migration.md">实时迁移</a>:
+了解如何将您的代理迁移到这个新芯片</li>
+</ul>

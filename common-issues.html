@@ -1,0 +1,153 @@
+<h1 id="故障排除常见问题">故障排除常见问题</h1>
+<h2 id="安装问题">安装问题</h2>
+<h3
+id="modulenotfounderror-no-module-named-openclaw">“ModuleNotFoundError:
+No module named ‘openclaw’”</h3>
+<p><strong>原因</strong>: SDK 未安装或 Python 路径问题。</p>
+<p><strong>解决方案</strong>:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 验证安装</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> list <span class="kw">|</span> <span class="fu">grep</span> openclaw</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 如果缺失</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">--upgrade</span> openclaw-sdk</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 如果仍然失败，检查 Python 版本（需要 3.10+）</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">--version</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用特定 Python 的 pip</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ex">python3.11</span> <span class="at">-m</span> pip install openclaw-sdk</span></code></pre></div>
+<h3 id="docker-compose-启动失败">Docker Compose 启动失败</h3>
+<p>错误：<code>ports are already allocated</code></p>
+<p>解决方案：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 检查什么在使用端口 8545</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">lsof</span> <span class="at">-i</span> :8545</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 停止服务或使用不同端口</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">LOCALCHAIN_PORT</span><span class="op">=</span>8546</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">IPFS_PORT</span><span class="op">=</span>5002</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="ex">docker-compose</span> up <span class="at">-d</span></span></code></pre></div>
+<h2 id="运行时错误">运行时错误</h2>
+<h3
+id="insufficientfundserror-evolution-budget-too-low">“InsufficientFundsError:
+Evolution budget too low”</h3>
+<p>原因：代理钱包中没有足够的 USDC 进行存款。</p>
+<p>解决方案：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 检查余额</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>balance <span class="op">=</span> <span class="cf">await</span> client.wallet.get_balance()</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Balance: </span><span class="sc">{</span>balance<span class="sc">}</span><span class="ss"> USDC&quot;</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 对于测试网，使用水龙头</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>curl <span class="op">-</span>X POST https:<span class="op">//</span>faucet.openclaw.foundation <span class="op">\</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a> <span class="op">-</span>d <span class="st">&#39;{&quot;address&quot;: &quot;0x...&quot;, &quot;amount&quot;: 10000}&#39;</span></span></code></pre></div>
+<h3
+id="evolutionsafetyerror-constitution-lock-violated">“EvolutionSafetyError:
+Constitution Lock violated”</h3>
+<p>原因：提议的硬件设计试图： - 修改自己的奖励函数 - 绕过透明度日志 -
+超过最大演化速率</p>
+<p>解决方案： 在异常中查看 <code>safety_report</code>：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">try</span>:</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a> job <span class="op">=</span> <span class="cf">await</span> client.submit_evolution_intent(gap)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="cf">except</span> EvolutionSafetyError <span class="im">as</span> e:</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot;Violation: </span><span class="sc">{</span>e<span class="sc">.</span>violation_type<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot;Details: </span><span class="sc">{</span>e<span class="sc">.</span>details<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a> <span class="bu">print</span>(<span class="ss">f&quot;Suggested fix: </span><span class="sc">{</span>e<span class="sc">.</span>suggested_alternative<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a> <span class="co"># 根据建议修改意图</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a> safe_intent <span class="op">=</span> e.suggested_alternative</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a> job <span class="op">=</span> <span class="cf">await</span> client.submit_evolution_intent(safe_intent)</span></code></pre></div>
+<h3 id="迁移失败并出现-equivalence-check-failed">迁移失败并出现
+“Equivalence check failed”</h3>
+<p>原因：新硬件行为与旧硬件不同（回归）。</p>
+<p>立即操作：系统自动回滚到旧硬件。</p>
+<p>诊断：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 获取详细的失败报告</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>report <span class="op">=</span> <span class="cf">await</span> client.migration.get_failure_report()</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(report.divergence_point) <span class="co"># 哪个指令/操作不同</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(report.expected_output) <span class="co"># 正确输出</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(report.actual_output) <span class="co"># 错误输出</span></span></code></pre></div>
+<p>常见修复：</p>
+<ul>
+<li>精度不匹配：检查量化方案是否匹配</li>
+<li>定时问题：新硬件太快/太慢，调整约束</li>
+<li>内存排序：不同的一致性模型，添加围栏</li>
+</ul>
+<h2 id="性能问题">性能问题</h2>
+<h3 id="eda-编译缓慢花费数小时">EDA 编译缓慢（花费数小时）</h3>
+<p>原因：默认云资源不足以应对设计复杂性。</p>
+<p>解决方案：</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 请求更多计算资源</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>compiler <span class="op">=</span> SiliconCompiler(</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a> cloud_config<span class="op">=</span>{</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;min_cores&quot;</span>: <span class="dv">1000</span>, <span class="co"># 从默认 100 扩展</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;priority&quot;</span>: <span class="st">&quot;high&quot;</span>, <span class="co"># 预占式与专用</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a> <span class="st">&quot;region&quot;</span>: <span class="st">&quot;us-west&quot;</span> <span class="co"># 靠近数据源</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a> }</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="瓶颈分析延迟高">瓶颈分析延迟高</h3>
+<p>原因：分析太多指标或历史记录过长。</p>
+<p>优化：</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用采样代替全追踪</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>gap <span class="op">=</span> <span class="cf">await</span> client.analyze_bottlenecks(</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a> current_metrics<span class="op">=</span>metrics,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a> sampling_rate<span class="op">=</span><span class="fl">0.1</span>, <span class="co"># 分析 10% 的流量</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a> history_window<span class="op">=</span><span class="st">&quot;7d&quot;</span> <span class="co"># 而不是默认的 30d</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h2 id="网络与区块链">网络与区块链</h2>
+<h3 id="nonce-too-low-错误">“Nonce too low” 错误</h3>
+<p>原因：交易 nonce 与链不同步。</p>
+<p>解决方案：</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 重置 nonce 跟踪</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> client.wallet.sync_nonce()</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 或手动设置</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> client.wallet.set_nonce(<span class="cf">await</span> client.web3.eth.get_transaction_count(</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a> client.wallet.address,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a> <span class="st">&#39;pending&#39;</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>))</span></code></pre></div>
+<h3 id="获取设计文件时-ipfs-超时">获取设计文件时 IPFS 超时</h3>
+<p>原因：IPFS 网络拥塞或内容未固定。</p>
+<p>解决方案：</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 检查 CID 是否可访问</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ipfs</span> dag stat QmAbC...</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 如果找不到，检查 Fabric 是否固定</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">openclaw</span> fabric pin-check QmAbC...</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 如需要手动固定</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="ex">ipfs</span> pin add QmAbC...</span></code></pre></div>
+<h2 id="调试工具">调试工具</h2>
+<h3 id="启用详细日志">启用详细日志</h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> logging</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>logging.basicConfig(level<span class="op">=</span>logging.DEBUG)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>logging.getLogger(<span class="st">&quot;openclaw&quot;</span>).setLevel(logging.DEBUG)</span></code></pre></div>
+<h3 id="检查服务健康状况">检查服务健康状况</h3>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 完整系统诊断</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>health <span class="op">=</span> <span class="cf">await</span> client.system.health_check()</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(health.blockchain_sync) <span class="co"># 链同步状态</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(health.ipfs_peers) <span class="co"># IPFS 连接性</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(health.eda_queue) <span class="co"># 云 EDA 作业队列深度</span></span></code></pre></div>
+<h3 id="重置本地状态危险">重置本地状态（危险！）</h3>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 清除所有本地数据，重新开始</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span> <span class="at">-rf</span> ~/.openclaw/data/</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="ex">docker-compose</span> down <span class="at">-v</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="ex">docker-compose</span> up <span class="at">-d</span></span></code></pre></div>
+<h2 id="获取帮助">获取帮助</h2>
+<p>如果问题持续存在：</p>
+<ul>
+<li>检查日志：<code>docker-compose logs agent | grep ERROR</code></li>
+<li>运行诊断：<code>openclaw doctor</code></li>
+<li>提交错误：在 GitHub 问题中包含 <code>openclaw system report</code>
+输出</li>
+</ul>
